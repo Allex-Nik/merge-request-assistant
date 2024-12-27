@@ -8,13 +8,9 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
-import kotlinx.serialization.Contextual
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
-//import kotlin.io.encoding.Base64
-import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Class describing the GitHub-token that is read from config.json.
@@ -137,38 +133,94 @@ suspend fun createBranch(client: HttpClient, repoOwner: String, repoName: String
 
 suspend fun addFileToBranch(client: HttpClient, repoOwner: String, repoName: String, branchName: String, filePath: String, content: String) {
     val addFileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath"
-    val encodedContent = Base64.getEncoder().encodeToString(content.toByteArray())
-//    println(encodedContent)
-    val addFileResponse = client.put(addFileUrl) {
-        contentType(ContentType.Application.Json)
-        setBody(
-            mapOf(
-                "message" to "Add $filePath",
-                "content" to encodedContent,
-                "branch" to branchName
+    try {
+        val encodedContent = Base64.getEncoder().encodeToString(content.toByteArray())
+        //    println(encodedContent)
+        val addFileResponse = client.put(addFileUrl) {
+            contentType(ContentType.Application.Json)
+            setBody(
+                mapOf(
+                    "message" to "Add $filePath",
+                    "content" to encodedContent,
+                    "branch" to branchName
+                )
             )
-        )
+        }
+        when (addFileResponse.status) {
+            HttpStatusCode.OK, HttpStatusCode.Created -> {
+                println("File added successfully. HTTP status: ${addFileResponse.status}")
+            }
+
+            HttpStatusCode.Conflict -> {
+                println("Conflict: file $filePath already exists. HTTP status: ${addFileResponse.status}")
+            }
+
+            HttpStatusCode.UnprocessableEntity -> {
+                val errorBody = addFileResponse.bodyAsText()
+                println("Unprocessable entity: possibly invalid branch or content. HTTP status: ${addFileResponse.status}")
+                println("Error: $errorBody")
+            }
+
+            else -> {
+                val errorBody = addFileResponse.bodyAsText()
+                println("Error occurred while adding file. HTTP status: ${addFileResponse.status}")
+                println("Error: $errorBody")
+            }
+        }
+    } catch (e: Exception) {
+        println("Exception occurred while adding file: ${e.message}")
     }
-    when (addFileResponse.status) {
-        HttpStatusCode.OK, HttpStatusCode.Created -> {
-            println("File added successfully. HTTP status: ${addFileResponse.status}")
+}
+
+suspend fun createPullRequest(
+    client: HttpClient,
+    repoOwner: String,
+    repoName: String,
+    title: String,
+    body: String,
+    headBranch: String,
+    baseBranch: String
+) {
+    val createPRUrl = "https://api.github.com/repos/$repoOwner/$repoName/pulls"
+    try {
+        val createPRResponse = client.post(createPRUrl) {
+            contentType(ContentType.Application.Json)
+            setBody(
+                mapOf(
+                    "title" to title,
+                    "body" to body,
+                    "head" to headBranch,
+                    "base" to baseBranch
+                )
+            )
         }
 
-        HttpStatusCode.Conflict -> {
-            println("Conflict: file $filePath already exists. HTTP status: ${addFileResponse.status}")
-        }
+        when (createPRResponse.status) {
+            HttpStatusCode.Created -> {
+                println("Pull request created successfully. HTTP status: ${createPRResponse.status}")
+                val prJson = createPRResponse.bodyAsText()
+                println("Response: $prJson")
+            }
 
-        HttpStatusCode.UnprocessableEntity -> {
-            val errorBody = addFileResponse.bodyAsText()
-            println("Unprocessable entity: possibly invalid branch or content. HTTP status: ${addFileResponse.status}")
-            println("Error: $errorBody")
-        }
+            HttpStatusCode.Forbidden -> {
+                println("Forbidden: you do not have permissions to create a pull request")
+                println("Error: ${createPRResponse.status}")
+            }
 
-        else -> {
-            val errorBody = addFileResponse.bodyAsText()
-            println("Error occurred while adding file. HTTP status: ${addFileResponse.status}")
-            println("Error: $errorBody")
+            HttpStatusCode.UnprocessableEntity -> {
+                val errorBody = createPRResponse.bodyAsText()
+                println("Validation error. HTTP status: ${createPRResponse.status}")
+                println("Error: $errorBody")
+            }
+
+            else -> {
+                val errorBody = createPRResponse.bodyAsText()
+                println("Error occurred while creating pull request. HTTP status: ${createPRResponse.status}")
+                println("Error: $errorBody")
+            }
         }
+    } catch (e: Exception) {
+        println("Exception occurred while creating pull request: ${e.message}")
     }
 }
 
@@ -265,19 +317,31 @@ suspend fun main() {
     println("Selected repository: ${selectedRepository.name}")
 
 
-    createBranch(client,
+    createBranch(
+        client,
         selectedRepository.owner.login,
         selectedRepository.name,
         "test",
-        "main")
+        "main"
+    )
 
-    addFileToBranch(client,
+    addFileToBranch(
+        client,
         selectedRepository.owner.login,
         selectedRepository.name,
         "test",
         "Hello.txt",
         content = "Hello world"
     )
+
+    createPullRequest(
+        client,
+        selectedRepository.owner.login,
+        selectedRepository.name,
+        title = "Add Hello.txt",
+        body = "Added Hello.txt with Hello world",
+        headBranch = "test",
+        baseBranch = "main")
 
     client.close()
 }
