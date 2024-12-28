@@ -69,7 +69,8 @@ suspend fun createBranch(
     repoOwner: String,
     repoName: String,
     branchName: String,
-    baseBranch: String): Boolean {
+    baseBranch: String
+): Boolean {
 
     val branchShaResult = getBaseBranchSha(client, repoOwner, repoName, baseBranch)
     val branchSha = branchShaResult.getOrElse {
@@ -127,13 +128,36 @@ suspend fun createBranch(
     }
 }
 
+suspend fun interactiveCreateBranch(
+    client: HttpClient,
+    repoOwner: String,
+    repoName: String,
+    branchName: String,
+    baseBranch: String
+) {
+    while (true) {
+        val result = createBranch(client, repoOwner, repoName, branchName, baseBranch)
+        if (result) {
+            return
+        }
+
+        println("Do you want to retry? (yes/no)")
+        val choice = readlnOrNull()?.lowercase()
+        if (choice == "yes") {
+            continue
+        }
+        return
+    }
+}
+
 suspend fun addFileToBranch(
     client: HttpClient,
     repoOwner: String,
     repoName: String,
     branchName: String,
     filePath: String,
-    content: String): Boolean {
+    content: String
+): Boolean {
     val addFileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath"
 
     val config = loadConfig().getOrElse {
@@ -183,6 +207,29 @@ suspend fun addFileToBranch(
     } catch (e: Exception) {
         println("Exception occurred while adding file: ${e.message}")
         return false
+    }
+}
+
+suspend fun interactiveAddFileToBranch(
+    client: HttpClient,
+    repoOwner: String,
+    repoName: String,
+    branchName: String,
+    filePath: String,
+    content: String
+) {
+    while (true) {
+        val result = addFileToBranch(client, repoOwner, repoName, branchName, filePath, content)
+        if (result) {
+            return
+        }
+
+        println("Do you want to retry? (yes/no)")
+        val choice = readlnOrNull()?.lowercase()
+        if (choice == "yes") {
+            continue
+        }
+        return
     }
 }
 

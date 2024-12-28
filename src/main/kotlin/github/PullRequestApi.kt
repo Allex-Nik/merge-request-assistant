@@ -76,3 +76,27 @@ suspend fun createPullRequest(
         return false
     }
 }
+
+suspend fun interactiveCreatePullRequest(
+    client: HttpClient,
+    repoOwner: String,
+    repoName: String,
+    title: String,
+    body: String,
+    headBranch: String,
+    baseBranch: String
+) {
+    while (true) {
+        val result = createPullRequest(client, repoOwner, repoName, title, body, headBranch, baseBranch)
+        if (result) {
+            return
+        }
+
+        println("Do you want to retry? (yes/no)")
+        val choice = readlnOrNull()?.lowercase()
+        if (choice == "yes") {
+            continue
+        }
+        return
+    }
+}

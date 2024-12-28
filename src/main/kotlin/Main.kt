@@ -7,7 +7,6 @@ import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
-import org.example.config.loadConfig
 import org.example.github.*
 
 
@@ -70,7 +69,7 @@ suspend fun main() {
         println("Selected repository: ${selectedRepository.name}")
 
 
-        createBranch(
+        interactiveCreateBranch(
             client,
             selectedRepository.owner.login,
             selectedRepository.name,
@@ -78,7 +77,7 @@ suspend fun main() {
             "main"
         )
 
-        addFileToBranch(
+        interactiveAddFileToBranch(
             client,
             selectedRepository.owner.login,
             selectedRepository.name,
@@ -87,7 +86,7 @@ suspend fun main() {
             content = "Hello world"
         )
 
-        createPullRequest(
+        interactiveCreatePullRequest(
             client,
             selectedRepository.owner.login,
             selectedRepository.name,
