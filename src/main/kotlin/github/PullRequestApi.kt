@@ -5,6 +5,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import org.example.ResponseStatus
+import org.example.config.loadConfig
 
 
 suspend fun createPullRequest(
@@ -17,8 +18,15 @@ suspend fun createPullRequest(
     baseBranch: String
 ): Boolean {
     val createPRUrl = "https://api.github.com/repos/$repoOwner/$repoName/pulls"
+
+    val config = loadConfig().getOrElse {
+        println("Failed to load config.json. Error: ${it.message}")
+        return false
+    }
+
     try {
         val createPRResponse = client.post(createPRUrl) {
+            header("Authorization", "Bearer ${config.githubToken}")
             contentType(ContentType.Application.Json)
             setBody(
                 mapOf(

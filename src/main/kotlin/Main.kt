@@ -10,23 +10,17 @@ import io.ktor.serialization.kotlinx.json.*
 import org.example.config.loadConfig
 import org.example.github.*
 
-import org.example.models.Config
-import org.example.models.Repository
-
 
 /**
  * The entrance point of the program.
  */
 suspend fun main() {
 
-    // Load the token
-    val config: Config
-    try {
-        config = loadConfig()
-    } catch (e: Exception) {
-        println("Failed to load config.json. Error: ${e.message}")
-        return
-    }
+//    // Load the token
+//    val config = loadConfig().getOrElse {
+//        println("Failed to load config.json. Error: ${it.message}")
+//        return
+//    }
 
 //    println("GitHub token: ${config.githubToken}")
 
@@ -36,7 +30,7 @@ suspend fun main() {
             json()
         }
         install(DefaultRequest) {
-            header("Authorization", "Bearer ${config.githubToken}")
+//            header("Authorization", "Bearer ${config.githubToken}")
             accept(ContentType.Application.Json)
         }
     }
@@ -46,15 +40,9 @@ suspend fun main() {
 
     try {
         // Get the list of repositories
-        val repositoriesResult = getRepositories(client)
-        val repositories: List<Repository> = repositoriesResult.getOrElse {
-            println("Failed to fetch repositories: ${it.message}")
-            return
-        }
-
-        // Check if the list of repositories is empty
-        if (repositories.isEmpty()) {
-            println("No repositories found for your user. Make sure your account has repositories.")
+        val repositories = interactiveGetRepositories(client)
+        if (repositories == null) {
+            println("Exiting program.")
             return
         }
 

@@ -6,6 +6,7 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.serialization.json.Json
 import org.example.ResponseStatus
+import org.example.config.loadConfig
 import org.example.models.BranchInfo
 import org.example.models.Repository
 import java.util.*
@@ -18,8 +19,13 @@ suspend fun getBaseBranchSha(
 ): Result<String> {
     val branchInfoUrl = "https://api.github.com/repos/$repoOwner/$repoName/git/refs/heads/$baseBranch"
 
+    val config = loadConfig().getOrElse {
+        return Result.failure(Exception("Failed to load config.json. Error: ${it.message}"))
+    }
+
     return try {
         val branchInfoResponse = client.get(branchInfoUrl) {
+            header("Authorization", "Bearer ${config.githubToken}")
             header("Accept", ContentType.Application.Json)
         }
 
@@ -71,9 +77,15 @@ suspend fun createBranch(
         return false
     }
 
+    val config = loadConfig().getOrElse {
+        println("Failed to load config.json. Error: ${it.message}")
+        return false
+    }
+
     try {
         val createBranchUrl = "https://api.github.com/repos/$repoOwner/$repoName/git/refs"
         val createBranchResponse = client.post(createBranchUrl) {
+            header("Authorization", "Bearer ${config.githubToken}")
             contentType(ContentType.Application.Json)
             setBody(
                 mapOf(
@@ -123,10 +135,17 @@ suspend fun addFileToBranch(
     filePath: String,
     content: String): Boolean {
     val addFileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath"
+
+    val config = loadConfig().getOrElse {
+        println("Failed to load config.json. Error: ${it.message}")
+        return false
+    }
+
     try {
         val encodedContent = Base64.getEncoder().encodeToString(content.toByteArray())
         //    println(encodedContent)
         val addFileResponse = client.put(addFileUrl) {
+            header("Authorization", "Bearer ${config.githubToken}")
             contentType(ContentType.Application.Json)
             setBody(
                 mapOf(
@@ -167,9 +186,11 @@ suspend fun addFileToBranch(
     }
 }
 
-suspend fun getRepositories(client: HttpClient): Result<List<Repository>> {
+suspend fun getRepositories(client: HttpClient, token: String): Result<List<Repository>> {
     return try {
-        val response = client.get("https://api.github.com/user/repos")
+        val response = client.get("https://api.github.com/user/repos") {
+            header("Authorization", "Bearer $token")
+        }
         //        println(response.bodyAsText())
 
         when (val status = parseGitHubResponse(response)) {
@@ -197,5 +218,44 @@ suspend fun getRepositories(client: HttpClient): Result<List<Repository>> {
         }
     } catch (e: Exception) {
         Result.failure(Exception("Exception occurred while fetching repositories: ${e.message}"))
+    }
+}
+
+suspend fun interactiveGetRepositories(client: HttpClient): List<Repository>? {
+    var currentConfig = loadConfig().getOrElse {
+        println("Failed to load config.json. Error: ${it.message}")
+        return null
+    }
+
+    while (true) {
+        val repositoriesResult = getRepositories(client, currentConfig.githubToken)
+        if (repositoriesResult.isFailure) {
+            println("Failed to fetch repositories: ${repositoriesResult.exceptionOrNull()?.message}")
+            println("Do you want to retry? (yes/no)")
+            val choice = readlnOrNull()?.lowercase()
+            if (choice != "yes") {
+                return null
+            }
+
+            currentConfig = loadConfig().getOrElse {
+                println("Failed to load config.json. Error: ${it.message}")
+                return null
+            }
+
+            continue
+        }
+        val repositories = repositoriesResult.getOrNull() ?: emptyList()
+
+        // Check if the list of repositories is empty
+        if (repositories.isEmpty()) {
+            println("No repositories found for your user. Make sure your account has repositories.")
+            println("Do you want to retry? (yes/no)")
+            val choice = readlnOrNull()?.lowercase()
+            if (choice != "yes") {
+                return null
+            }
+            continue
+        }
+        return repositories
     }
 }
