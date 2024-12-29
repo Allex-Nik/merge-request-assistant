@@ -69,14 +69,14 @@ suspend fun main() {
         println("Selected repository: ${selectedRepository.name}")
 
 
-        val branchCreated = interactiveCreateBranch(
+        val finalBranchName = interactiveCreateBranch(
             client,
             selectedRepository.owner.login,
             selectedRepository.name,
             "test",
             "main"
         )
-        if (!branchCreated) {
+        if (finalBranchName == null) {
             return
         }
 
@@ -84,7 +84,7 @@ suspend fun main() {
             client,
             selectedRepository.owner.login,
             selectedRepository.name,
-            "test",
+            finalBranchName,
             "Hello.txt",
             content = "Hello world"
         )
@@ -98,7 +98,7 @@ suspend fun main() {
             selectedRepository.name,
             title = "Add Hello.txt",
             body = "Added Hello.txt with Hello world",
-            headBranch = "test",
+            headBranch = finalBranchName,
             baseBranch = "main"
         )
         if (!prCreated) {

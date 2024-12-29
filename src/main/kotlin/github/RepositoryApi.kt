@@ -71,17 +71,17 @@ suspend fun createBranch(
     repoName: String,
     branchName: String,
     baseBranch: String
-): Boolean {
+): String? {
 
     val branchShaResult = getBaseBranchSha(client, repoOwner, repoName, baseBranch)
     val branchSha = branchShaResult.getOrElse {
         println("Failed to fetch base branch SHA: ${it.message}")
-        return false
+        return null
     }
 
     val config = loadConfig().getOrElse {
         println("Failed to load config.json. Error: ${it.message}")
-        return false
+        return null
     }
 
     try {
@@ -100,12 +100,12 @@ suspend fun createBranch(
         return when (val status = parseGitHubResponse(createBranchResponse)) {
             is ResponseStatus.Success -> {
                 println("Branch $branchName created successfully. HTTP status: ${createBranchResponse.status}")
-                true
+                branchName
             }
 
             is ResponseStatus.Conflict -> {
                 println("Conflict: HTTP status: ${createBranchResponse.status}")
-                false
+                null
             }
 
             is ResponseStatus.UnprocessableEntity -> {
@@ -116,7 +116,7 @@ suspend fun createBranch(
                     println("Branch already exists")
                     println("Do you want to use the existing branch? (yes/no)")
                     val useExisting = readlnOrNull()?.lowercase()
-                    if (useExisting == "yes") return true
+                    if (useExisting == "yes") return branchName
 
                     println("Do you want to retry with a different branch name? (yes/no)")
                     val retryNewName = readlnOrNull()?.lowercase()
@@ -127,26 +127,26 @@ suspend fun createBranch(
                             return createBranch(client, repoOwner, repoName, newBranchName, baseBranch)
                         } else {
                             println("Invalid branch name. Exiting.")
-                            return false
+                            return null
                         }
                     }
                 }
-                false
+                null
             }
 
             is ResponseStatus.Unexpected -> {
                 println("Unexpected status: ${status.code}")
-                false
+                null
             }
 
             else -> {
                 println("Error occurred while creating branch. HTTP status: ${createBranchResponse.status}")
-                false
+                null
             }
         }
     } catch (e: Exception) {
         println("Exception occurred while creating branch: ${e.message}")
-        return false
+        return null
     }
 }
 
@@ -156,11 +156,11 @@ suspend fun interactiveCreateBranch(
     repoName: String,
     branchName: String,
     baseBranch: String
-): Boolean {
+): String? {
     while (true) {
-        val result = createBranch(client, repoOwner, repoName, branchName, baseBranch)
-        if (result) {
-            return true
+        val resultBranch = createBranch(client, repoOwner, repoName, branchName, baseBranch)
+        if (resultBranch != null) {
+            return resultBranch
         }
 
         println("Do you want to retry? (yes/no)")
@@ -168,7 +168,7 @@ suspend fun interactiveCreateBranch(
         if (choice == "yes") {
             continue
         }
-        return false
+        return null
     }
 }
 
