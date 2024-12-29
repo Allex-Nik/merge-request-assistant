@@ -4,6 +4,10 @@ import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.example.ResponseStatus
 import org.example.config.loadConfig
 
@@ -54,8 +58,29 @@ suspend fun createPullRequest(
 
             is ResponseStatus.UnprocessableEntity -> {
                 val errorBody = createPRResponse.bodyAsText()
-                println("Validation error. HTTP status: ${createPRResponse.status}")
-                println("Error: $errorBody")
+
+                if (errorBody.contains("already exists")) {
+                    println("A pull request with head $headBranch and base $baseBranch already exists")
+                    val pullsUrl = "https://api.github.com/repos/$repoOwner/$repoName/pulls"
+                    val response = client.get(pullsUrl) {
+                        header("Authorization", "Bearer ${config.githubToken}")
+                    }
+                    val json = Json { ignoreUnknownKeys = true }
+                    val pullRequests = json.parseToJsonElement(response.bodyAsText()).jsonArray
+                    for (pr in pullRequests) {
+                        val prObject = pr.jsonObject
+                        val headRef = prObject["head"]?.jsonObject?.get("ref")?.jsonPrimitive?.content
+                        val baseRef = prObject["base"]?.jsonObject?.get("ref")?.jsonPrimitive?.content
+                        val htmlUrl = prObject["html_url"]?.jsonPrimitive?.content
+
+                        if (headRef == headBranch && baseRef == baseBranch) {
+                            println("Link: $htmlUrl")
+                        }
+                    }
+                } else {
+                    println("Validation error. HTTP status: ${createPRResponse.status}")
+                    println("Error: $errorBody")
+                }
                 false
             }
 
