@@ -85,11 +85,11 @@ suspend fun interactiveCreatePullRequest(
     body: String,
     headBranch: String,
     baseBranch: String
-) {
+): Boolean {
     while (true) {
         val result = createPullRequest(client, repoOwner, repoName, title, body, headBranch, baseBranch)
         if (result) {
-            return
+            return true
         }
 
         println("Do you want to retry? (yes/no)")
@@ -97,6 +97,6 @@ suspend fun interactiveCreatePullRequest(
         if (choice == "yes") {
             continue
         }
-        return
+        return false
     }
 }

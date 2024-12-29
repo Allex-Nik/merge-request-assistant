@@ -69,15 +69,18 @@ suspend fun main() {
         println("Selected repository: ${selectedRepository.name}")
 
 
-        interactiveCreateBranch(
+        val branchCreated = interactiveCreateBranch(
             client,
             selectedRepository.owner.login,
             selectedRepository.name,
             "test",
             "main"
         )
+        if (!branchCreated) {
+            return
+        }
 
-        interactiveAddFileToBranch(
+        val fileAdded = interactiveAddFileToBranch(
             client,
             selectedRepository.owner.login,
             selectedRepository.name,
@@ -85,8 +88,11 @@ suspend fun main() {
             "Hello.txt",
             content = "Hello world"
         )
+        if (!fileAdded) {
+            return
+        }
 
-        interactiveCreatePullRequest(
+        val prCreated = interactiveCreatePullRequest(
             client,
             selectedRepository.owner.login,
             selectedRepository.name,
@@ -95,6 +101,11 @@ suspend fun main() {
             headBranch = "test",
             baseBranch = "main"
         )
+        if (!prCreated) {
+            return
+        }
+
+        println("All steps completed successfully.")
     } finally {
         client.close()
     }

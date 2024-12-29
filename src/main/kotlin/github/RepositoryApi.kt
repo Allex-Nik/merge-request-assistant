@@ -8,6 +8,7 @@ import kotlinx.serialization.json.Json
 import org.example.ResponseStatus
 import org.example.config.loadConfig
 import org.example.models.BranchInfo
+import org.example.models.FileInfo
 import org.example.models.Repository
 import java.util.*
 
@@ -103,12 +104,33 @@ suspend fun createBranch(
             }
 
             is ResponseStatus.Conflict -> {
-                println("Conflict: branch $branchName already exists. HTTP status: ${createBranchResponse.status}")
+                println("Conflict: HTTP status: ${createBranchResponse.status}")
                 false
             }
 
             is ResponseStatus.UnprocessableEntity -> {
                 println("Unprocessable entity. HTTP status: ${createBranchResponse.status}")
+                val errorBody = createBranchResponse.bodyAsText()
+//                println(errorBody)
+                if (errorBody.contains("Reference already exists")) {
+                    println("Branch already exists")
+                    println("Do you want to use the existing branch? (yes/no)")
+                    val useExisting = readlnOrNull()?.lowercase()
+                    if (useExisting == "yes") return true
+
+                    println("Do you want to retry with a different branch name? (yes/no)")
+                    val retryNewName = readlnOrNull()?.lowercase()
+                    if (retryNewName == "yes") {
+                        println("Enter a new branch name: ")
+                        val newBranchName = readlnOrNull()?.trim()
+                        if (!newBranchName.isNullOrEmpty()) {
+                            return createBranch(client, repoOwner, repoName, newBranchName, baseBranch)
+                        } else {
+                            println("Invalid branch name. Exiting.")
+                            return false
+                        }
+                    }
+                }
                 false
             }
 
@@ -134,11 +156,11 @@ suspend fun interactiveCreateBranch(
     repoName: String,
     branchName: String,
     baseBranch: String
-) {
+): Boolean {
     while (true) {
         val result = createBranch(client, repoOwner, repoName, branchName, baseBranch)
         if (result) {
-            return
+            return true
         }
 
         println("Do you want to retry? (yes/no)")
@@ -146,7 +168,7 @@ suspend fun interactiveCreateBranch(
         if (choice == "yes") {
             continue
         }
-        return
+        return false
     }
 }
 
@@ -158,7 +180,98 @@ suspend fun addFileToBranch(
     filePath: String,
     content: String
 ): Boolean {
-    val addFileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath"
+    val config = loadConfig().getOrElse {
+        println("Failed to load config.json. Error: ${it.message}")
+        return false
+    }
+    val fileSha = checkIfFileExists(client, repoOwner, repoName, filePath)
+
+    return if (fileSha != null) {
+        println("File $filePath already exists in branch $branchName.")
+        println("Do you want to replace the file? (yes/no)")
+        val choice = readlnOrNull()?.lowercase()
+        if (choice == "yes") {
+            return replaceFileInBranch(client, repoOwner, repoName, branchName, filePath, content)
+        } else {
+            false
+        }
+    } else {
+
+        try {
+            val encodedContent = Base64.getEncoder().encodeToString(content.toByteArray())
+            val addFileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath"
+            //    println(encodedContent)
+            val addFileResponse = client.put(addFileUrl) {
+                header("Authorization", "Bearer ${config.githubToken}")
+                contentType(ContentType.Application.Json)
+                setBody(
+                    mapOf(
+                        "message" to "Add $filePath",
+                        "content" to encodedContent,
+                        "branch" to branchName
+                    )
+                )
+            }
+
+            return when (val status = parseGitHubResponse(addFileResponse)) {
+                is ResponseStatus.Success -> {
+                    println("File added successfully. HTTP status: ${addFileResponse.status}")
+                    true
+                }
+                else -> {
+                    val errorBody = addFileResponse.bodyAsText()
+                    println("Error occurred while adding file. HTTP status: ${addFileResponse.status}")
+                    println("Error: $errorBody")
+                    false
+                }
+            }
+        } catch (e: Exception) {
+            println("Exception occurred while adding file: ${e.message}")
+            return false
+        }
+    }
+}
+
+suspend fun checkIfFileExists(
+    client: HttpClient,
+    repoOwner: String,
+    repoName: String,
+    filePath: String
+): String? {
+    val fileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath"
+    val config = loadConfig().getOrElse {
+        println("Failed to load config.json. Error: ${it.message}")
+        return null
+    }
+
+    return try {
+        val response = client.get(fileUrl) {
+            header("Authorization", "Bearer ${config.githubToken}")
+        }
+
+        if (response.status == HttpStatusCode.OK) {
+            val json = Json { ignoreUnknownKeys = true }
+            val fileInfo = json.decodeFromString<FileInfo>(response.bodyAsText())
+            fileInfo.sha
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        println("Exception occurred while checking file existence: ${e.message}")
+        null
+    }
+}
+
+
+suspend fun replaceFileInBranch(
+    client: HttpClient,
+    repoOwner: String,
+    repoName: String,
+    branchName: String,
+    filePath: String,
+    newContent: String
+): Boolean {
+    val replaceFileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath"
 
     val config = loadConfig().getOrElse {
         println("Failed to load config.json. Error: ${it.message}")
@@ -166,46 +279,43 @@ suspend fun addFileToBranch(
     }
 
     try {
-        val encodedContent = Base64.getEncoder().encodeToString(content.toByteArray())
-        //    println(encodedContent)
-        val addFileResponse = client.put(addFileUrl) {
+        val replaceFileResponse = client.get(replaceFileUrl) {
+            header("Authorization", "Bearer ${config.githubToken}")
+            header("Accept", ContentType.Application.Json)
+        }
+
+        if (!replaceFileResponse.status.isSuccess()) {
+            println("Failed to fetch the file details. HTTP status: ${replaceFileResponse.status}")
+            return false
+        }
+
+        val json = Json { ignoreUnknownKeys = true }
+        val fileInfo = json.decodeFromString<FileInfo>(replaceFileResponse.bodyAsText())
+        val currentSha = fileInfo.sha
+
+        val encodedContent = Base64.getEncoder().encodeToString(newContent.toByteArray())
+        val updateFileResponse = client.put(replaceFileUrl) {
             header("Authorization", "Bearer ${config.githubToken}")
             contentType(ContentType.Application.Json)
             setBody(
                 mapOf(
-                    "message" to "Add $filePath",
+                    "message" to "Update $filePath",
                     "content" to encodedContent,
-                    "branch" to branchName
+                    "branch" to branchName,
+                    "sha" to currentSha
                 )
             )
         }
-        return when (val status = parseGitHubResponse(addFileResponse)) {
-            is ResponseStatus.Success -> {
-                println("File added successfully. HTTP status: ${addFileResponse.status}")
-                true
-            }
-
-            is ResponseStatus.Conflict -> {
-                println("Conflict: file $filePath already exists. HTTP status: ${addFileResponse.status}")
-                false
-            }
-
-            is ResponseStatus.UnprocessableEntity -> {
-                val errorBody = addFileResponse.bodyAsText()
-                println("Unprocessable entity: possibly invalid branch or content. HTTP status: ${addFileResponse.status}")
-                println("Error: $errorBody")
-                false
-            }
-
-            else -> {
-                val errorBody = addFileResponse.bodyAsText()
-                println("Error occurred while adding file. HTTP status: ${addFileResponse.status}")
-                println("Error: $errorBody")
-                false
-            }
+        return if (updateFileResponse.status == HttpStatusCode.OK) {
+            println("File $filePath is updated successfully in branch $branchName")
+            true
+        } else {
+            println("Failed to update $filePath. HTTP status: ${updateFileResponse.status}")
+            println("Error: ${updateFileResponse.bodyAsText()}")
+            false
         }
     } catch (e: Exception) {
-        println("Exception occurred while adding file: ${e.message}")
+        println("Exception occurred while updating file: ${e.message}")
         return false
     }
 }
@@ -217,11 +327,11 @@ suspend fun interactiveAddFileToBranch(
     branchName: String,
     filePath: String,
     content: String
-) {
+): Boolean {
     while (true) {
         val result = addFileToBranch(client, repoOwner, repoName, branchName, filePath, content)
         if (result) {
-            return
+            return true
         }
 
         println("Do you want to retry? (yes/no)")
@@ -229,7 +339,7 @@ suspend fun interactiveAddFileToBranch(
         if (choice == "yes") {
             continue
         }
-        return
+        return false
     }
 }
 
