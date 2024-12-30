@@ -241,7 +241,7 @@ suspend fun addFileToBranch(
         println("Failed to load config.json. Error: ${it.message}")
         return false
     }
-    val fileSha = checkIfFileExists(client, repoOwner, repoName, filePath)
+    val fileSha = checkIfFileExists(client, repoOwner, repoName, filePath, branchName)
 
     return if (fileSha != null) {
         println("File $filePath already exists in branch $branchName.")
@@ -303,9 +303,10 @@ suspend fun checkIfFileExists(
     client: HttpClient,
     repoOwner: String,
     repoName: String,
-    filePath: String
+    filePath: String,
+    branchName: String
 ): String? {
-    val fileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath"
+    val fileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath?ref=$branchName"
     val config = loadConfig().getOrElse {
         println("Failed to load config.json. Error: ${it.message}")
         return null
@@ -350,7 +351,7 @@ suspend fun replaceFileInBranch(
     filePath: String,
     newContent: String
 ): Boolean {
-    val replaceFileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath"
+    val replaceFileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath?ref=$branchName"
 
     val config = loadConfig().getOrElse {
         println("Failed to load config.json. Error: ${it.message}")
