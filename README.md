@@ -21,7 +21,7 @@
 
 ## Installation:
 - Clone the repository:
-git clone https://github.com/Allex-Nik/merge-request-assistant.git
+`git clone https://github.com/Allex-Nik/merge-request-assistant.git`
 - Build the project and run the application.
 
 ## Usage:
