@@ -101,3 +101,41 @@ All steps completed successfully.
 
 Process finished with exit code 0
 ```
+
+3. Pull request with the same base branch and head branch already exists:
+```
+Enter the name of the base branch. Default: main
+
+Enter the name of the head branch. Default: hello
+
+Enter the name of the file you want to add. Default: Hello.txt
+
+Enter the content of the file you want to add. Default: Hello World
+
+Enter the title of your pull request. Default: Add Hello.txt
+
+Enter the description of your pull request. Default: Added Hello.txt with Hello world
+
+Available repositories: 4
+1. Name: test_repo, URL: [url], Private: true
+2. Name: test_repo_2, URL: [url], Private: true
+3. Name: test_repo_3, URL: [url], Private: true
+4. Name: test_repo_4, URL: [url], Private: false
+Enter the number of the repository: 
+1
+Selected repository: test_repo
+Unprocessable entity. HTTP status: 422 Unprocessable Entity
+Branch already exists
+Do you want to use the existing branch? (yes/no)
+yes
+File Hello.txt already exists in branch hello.
+Do you want to replace the file? (yes/no)
+yes
+File Hello.txt is updated successfully in branch hello
+A pull request with head hello and base main already exists
+Link: [link to the existing PR]
+Do you want to retry? (yes/no)
+no
+
+Process finished with exit code 0
+```
