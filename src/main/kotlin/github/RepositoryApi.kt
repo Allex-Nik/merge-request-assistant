@@ -42,10 +42,20 @@ suspend fun getBaseBranchSha(
 
         when (val status = parseGitHubResponse(branchInfoResponse)) {
             is ResponseStatus.Success -> {
-                val branchInfo = Json.decodeFromString<BranchInfo>(branchInfoResponse.bodyAsText())
-                println(branchInfo)
-                val branchSha = branchInfo.`object`.sha
-                Result.success(branchSha)
+                try {
+                    val branchInfo = Json.decodeFromString<BranchInfo>(branchInfoResponse.bodyAsText())
+                    val branchSha = branchInfo.`object`.sha
+                    Result.success(branchSha)
+                } catch (e: Exception) {
+                    Result.failure(
+                        Exception(
+                            """Branch $baseBranch not found.
+                                |Details: ${e.message}
+                            """.trimMargin()
+                        )
+                    )
+                }
+
             }
 
             is ResponseStatus.NotFound -> Result.failure(
@@ -95,6 +105,12 @@ suspend fun createBranch(
 ): String? {
 
     val branchShaResult = getBaseBranchSha(client, repoOwner, repoName, baseBranch)
+
+    if (branchShaResult.isFailure) {
+        val errorMessage = branchShaResult.exceptionOrNull()?.message ?: "Unknown error"
+        println(errorMessage)
+        return null
+    }
     val branchSha = branchShaResult.getOrElse {
         println("Failed to fetch base branch SHA: ${it.message}")
         return null
