@@ -10,7 +10,9 @@ import io.ktor.serialization.kotlinx.json.*
 import org.example.github.*
 import org.example.models.Repository
 
-
+/**
+ * Stores default values as constants.
+ */
 object Constants {
     const val DEFAULT_BASE_BRANCH = "main"
     const val DEFAULT_HEAD_BRANCH = "hello"
@@ -22,9 +24,9 @@ object Constants {
 
 /**
  * The entrance point of the program.
+ * Guides the user through the process of creating a pull request.
  */
 suspend fun main() {
-//    println("GitHub token: ${config.githubToken}")
 
     val baseBranch = handleInput(
         "Enter the name of the base branch", Constants.DEFAULT_BASE_BRANCH)
@@ -44,39 +46,36 @@ suspend fun main() {
     val prDescription = handleInput(
         "Enter the description of your pull request", Constants.DEFAULT_PR_DESCRIPTION)
 
-//    val userInfo: String = client.get("https://api.github.com/user").bodyAsText()
-//    println("User info: $userInfo")
-
     val client = createHttpClient()
-    try {
-        // Get the list of repositories
-        val selectedRepository = selectRepository(client) ?: return
 
+    client.use { httpClient ->
+        // Get the list of repositories and let the user select one
+        val selectedRepository = selectRepository(httpClient) ?: return
+
+        // Create a new branch
         val finalBranchName = interactiveCreateBranch(
-            client,
+            httpClient,
             selectedRepository.owner.login,
             selectedRepository.name,
             headBranch,
             baseBranch
         )
-        if (finalBranchName == null) {
-            return
-        }
+        if (finalBranchName == null) return
 
+        // Add a file to a new branch
         val fileAdded = interactiveAddFileToBranch(
-            client,
+            httpClient,
             selectedRepository.owner.login,
             selectedRepository.name,
             finalBranchName,
             fileName,
             content
         )
-        if (!fileAdded) {
-            return
-        }
+        if (!fileAdded) return
 
+        // Create a pull request from the head branch to the base branch
         val prCreated = interactiveCreatePullRequest(
-            client,
+            httpClient,
             selectedRepository.owner.login,
             selectedRepository.name,
             title = prTitle,
@@ -84,16 +83,17 @@ suspend fun main() {
             headBranch = finalBranchName,
             baseBranch = baseBranch
         )
-        if (!prCreated) {
-            return
-        }
+        if (!prCreated) return
 
         println("All steps completed successfully.")
-    } finally {
-        client.close()
     }
 }
 
+/**
+ * Creates an HTTP client for interacting with the GitHub API.
+ *
+ * @return An instance of [HttpClient].
+ */
 fun createHttpClient() = HttpClient(CIO) {
     install(ContentNegotiation) {
         json()
@@ -103,20 +103,23 @@ fun createHttpClient() = HttpClient(CIO) {
     }
 }
 
+/**
+ * Prompts the user to select a repository from a list fetched from GitHub.
+ *
+ * @param client The HTTP client used to fetch the repositories.
+ * @return The selected repositories, or null.
+ */
 suspend fun selectRepository(client: HttpClient): Repository? {
     val repositories = interactiveGetRepositories(client) ?: return null
 
-    // Print the list of the repositories
     println("Available repositories: ${repositories.size}")
     repositories.forEachIndexed { index, repository ->
         println("${index + 1}. Name: ${repository.name}, URL: ${repository.html_url}, Private: ${repository.private}")
     }
 
-    // Ask the user to choose a repository and save the choice
     println("Enter the number of the repository: ")
     val selectedIndex = readlnOrNull()?.toIntOrNull()
 
-    // Check the input
     if (selectedIndex == null || selectedIndex !in 1..repositories.size) {
         println("Invalid selected repository index. Try again.")
         return null
@@ -125,6 +128,13 @@ suspend fun selectRepository(client: HttpClient): Repository? {
     return repositories[selectedIndex - 1].also { println("Selected repository: ${it.name}") }
 }
 
+/**
+ * Handles user input to receive the necessary information to proceed.
+ *
+ * @param message The message that is displayed to the user.
+ * @param default The default value to use.
+ * @return The input of the user or the default value.
+ */
 fun handleInput(message: String, default: String): String {
     println("$message. Default: $default")
     return readlnOrNull()

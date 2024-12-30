@@ -11,7 +11,22 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.example.ResponseStatus
 import org.example.config.loadConfig
 
-
+/**
+ * Creates a pull request on GitHub.
+ *
+ * Send a POST request to the GitHub API to create a pull request in the specified repository.
+ * If the operation is successful, print the details of the pull request.
+ * Otherwise, print an error message and suggest to try again.
+ *
+ * @param client An instance of [HttpClient] used to make HTTP requests.
+ * @param repoOwner The owner of the repository.
+ * @param repoName The name of the repository.
+ * @param title The title of the pull request.
+ * @param body The description of the pull request.
+ * @param headBranch The name of the branch from which the changes will be merged.
+ * @param baseBranch The name of the branch to which the changes will be merged.
+ * @return `true` if the pull request was successfully created, `false` otherwise.
+ */
 suspend fun createPullRequest(
     client: HttpClient,
     repoOwner: String,
@@ -29,6 +44,7 @@ suspend fun createPullRequest(
     }
 
     try {
+        // Send a POST request
         val createPRResponse = client.post(createPRUrl) {
             header("Authorization", "Bearer ${config.githubToken}")
             contentType(ContentType.Application.Json)
@@ -42,6 +58,7 @@ suspend fun createPullRequest(
             )
         }
 
+        // Handle the response
         return when (val status = parseGitHubResponse(createPRResponse)) {
             is ResponseStatus.Success -> {
                 println("Pull request created successfully. HTTP status: ${createPRResponse.status}")
@@ -59,6 +76,7 @@ suspend fun createPullRequest(
             is ResponseStatus.UnprocessableEntity -> {
                 val errorBody = createPRResponse.bodyAsText()
 
+                // If the PR already exists, gives the link to the PR and finishes the program
                 if (errorBody.contains("already exists")) {
                     println("A pull request with head $headBranch and base $baseBranch already exists")
                     val pullsUrl = "https://api.github.com/repos/$repoOwner/$repoName/pulls"
@@ -102,6 +120,19 @@ suspend fun createPullRequest(
     }
 }
 
+/**
+ * Repeatedly attempts to create a pull request using [createPullRequest]
+ * until the pull request is created or the users decides to stop trying.
+ *
+ * @param client An instance of [HttpClient] used to make HTTP requests.
+ * @param repoOwner The owner of the repository.
+ * @param repoName The name of the repository.
+ * @param title The title of the pull request.
+ * @param body The description of the pull request.
+ * @param headBranch The name of the branch from which the changes will be merged.
+ * @param baseBranch The name of the branch to which the changes will be merged.
+ * @return `true` if the pull request was successfully created, `false` otherwise.
+ */
 suspend fun interactiveCreatePullRequest(
     client: HttpClient,
     repoOwner: String,

@@ -4,7 +4,12 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import org.example.ResponseStatus
 
-
+/**
+ * Parses an HTTP response from GitHub and maps it to a [ResponseStatus].
+ *
+ * @param response The HTTP response from GitHub to map.
+ * @return A [ResponseStatus] that represents the response.
+ */
 fun parseGitHubResponse(response: HttpResponse): ResponseStatus {
     return when {
         response.status == HttpStatusCode.Unauthorized -> ResponseStatus.Unauthorized

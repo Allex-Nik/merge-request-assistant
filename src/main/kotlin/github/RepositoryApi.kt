@@ -12,6 +12,16 @@ import org.example.models.FileInfo
 import org.example.models.Repository
 import java.util.*
 
+/**
+ * Fetches the SHA of the base branch in the specified GitHub repository.
+ *
+ * @param client An instance of [HttpClient] used for making HTTP requests.
+ * @param repoOwner The owner of the repository.
+ * @param repoName The name of the repository.
+ * @param baseBranch The name of the base branch.
+ * @return A [Result] containing the SHA of the base branch if the request succeeds,
+ * error message otherwise.
+ */
 suspend fun getBaseBranchSha(
     client: HttpClient,
     repoOwner: String,
@@ -30,7 +40,6 @@ suspend fun getBaseBranchSha(
             header("Accept", ContentType.Application.Json)
         }
 
-//        println(branchInfoResponse.bodyAsText())
         when (val status = parseGitHubResponse(branchInfoResponse)) {
             is ResponseStatus.Success -> {
                 val branchInfo = Json.decodeFromString<BranchInfo>(branchInfoResponse.bodyAsText())
@@ -59,12 +68,23 @@ suspend fun getBaseBranchSha(
             else -> Result.failure(Exception("Unknown response status ${branchInfoResponse.status}"))
         }
 
-
     } catch (e: Exception) {
         Result.failure(Exception("Exception occurred while obtaining the base branch SHA: ${e.message}"))
     }
 }
 
+/**
+ * Creates a new branch in the specified GitHub repository.
+ *
+ * Calls [getBaseBranchSha] to get the SHA of the base branch,
+ * and sends a request to the GitHub API to create a new branch.
+ *
+ * @param client An instance of [HttpClient] used for making HTTP requests.
+ * @param repoOwner The owner of the repository.
+ * @param repoName The name of the repository.
+ * @param branchName The name of the new branch to create.
+ * @param baseBranch The name of the base branch.
+ */
 suspend fun createBranch(
     client: HttpClient,
     repoOwner: String,
@@ -111,7 +131,6 @@ suspend fun createBranch(
             is ResponseStatus.UnprocessableEntity -> {
                 println("Unprocessable entity. HTTP status: ${createBranchResponse.status}")
                 val errorBody = createBranchResponse.bodyAsText()
-//                println(errorBody)
                 if (errorBody.contains("Reference already exists")) {
                     println("Branch already exists")
                     println("Do you want to use the existing branch? (yes/no)")
@@ -150,6 +169,16 @@ suspend fun createBranch(
     }
 }
 
+/**
+ * Repeatedly tries to create a new branch by calling [createBranch]
+ * until it succeeds or the user decides to stop trying.
+ *
+ * @param client An instance of [HttpClient] used for making HTTP requests.
+ * @param repoOwner The owner of the repository.
+ * @param repoName The name of the repository.
+ * @param branchName The name of the new branch to create.
+ * @param baseBranch The name of the base branch.
+ */
 suspend fun interactiveCreateBranch(
     client: HttpClient,
     repoOwner: String,
@@ -172,6 +201,17 @@ suspend fun interactiveCreateBranch(
     }
 }
 
+/**
+ * Adds a file to the specified branch in the GitHub repository.
+ *
+ * @param client An instance of [HttpClient] used for making HTTP requests.
+ * @param repoOwner The owner of the repository.
+ * @param repoName The name of the repository.
+ * @param branchName The name of the new branch to create.
+ * @param filePath The path where the file should be added.
+ * @param content The content of the file to be added.
+ * @return `true` if the file was added successfully, `false` otherwise.
+ */
 suspend fun addFileToBranch(
     client: HttpClient,
     repoOwner: String,
@@ -200,7 +240,6 @@ suspend fun addFileToBranch(
         try {
             val encodedContent = Base64.getEncoder().encodeToString(content.toByteArray())
             val addFileUrl = "https://api.github.com/repos/$repoOwner/$repoName/contents/$filePath"
-            //    println(encodedContent)
             val addFileResponse = client.put(addFileUrl) {
                 header("Authorization", "Bearer ${config.githubToken}")
                 contentType(ContentType.Application.Json)
@@ -232,6 +271,17 @@ suspend fun addFileToBranch(
     }
 }
 
+/**
+ * Checks if a file exists in the specified GitHub repository.
+ *
+ * Sends a request to the GitHub API to check if the file exists at the specified path.
+ * If the file exists, returns its SHA.
+ *
+ * @param client An instance of [HttpClient] used for making HTTP requests.
+ * @param repoOwner The owner of the repository.
+ * @param repoName The name of the repository.
+ * @param filePath The path to the file.
+ */
 suspend fun checkIfFileExists(
     client: HttpClient,
     repoOwner: String,
@@ -262,7 +312,19 @@ suspend fun checkIfFileExists(
     }
 }
 
-
+/**
+ * Replaces the content of an existing file in the specified branch of the GitHub repository.
+ *
+ * Retrieves the SHA of the current file, then updates the file content with the new content.
+ *
+ * @param client An instance of [HttpClient] used for making HTTP requests.
+ * @param repoOwner The owner of the repository.
+ * @param repoName The name of the repository.
+ * @param branchName The name of the new branch to create.
+ * @param filePath The path to the file.
+ * @param newContent The new content.
+ * @return `true` if the file was updated successfully, `false` otherwise.
+ */
 suspend fun replaceFileInBranch(
     client: HttpClient,
     repoOwner: String,
@@ -320,6 +382,17 @@ suspend fun replaceFileInBranch(
     }
 }
 
+/**
+ * Repeatedly tries to add a file to the specified branch in the GitHub repository.
+ *
+ * @param client An instance of [HttpClient] used for making HTTP requests.
+ * @param repoOwner The owner of the repository.
+ * @param repoName The name of the repository.
+ * @param branchName The name of the new branch to create.
+ * @param filePath The path where the file will be added.
+ * @param content The content of the file to be added.
+ * @return `true` if the file was added successfully, `false` otherwise.
+ */
 suspend fun interactiveAddFileToBranch(
     client: HttpClient,
     repoOwner: String,
@@ -343,12 +416,18 @@ suspend fun interactiveAddFileToBranch(
     }
 }
 
+/**
+ * Fetches the list of repositories in the specified GitHub account.
+ *
+ * @param client An instance of [HttpClient] used for making HTTP requests.
+ * @param token The GitHub token for authentication.
+ * @return A [Result] containing the list of repositories, or an error.
+ */
 suspend fun getRepositories(client: HttpClient, token: String): Result<List<Repository>> {
     return try {
         val response = client.get("https://api.github.com/user/repos") {
             header("Authorization", "Bearer $token")
         }
-        //        println(response.bodyAsText())
 
         when (val status = parseGitHubResponse(response)) {
             is ResponseStatus.Success -> {
@@ -378,6 +457,12 @@ suspend fun getRepositories(client: HttpClient, token: String): Result<List<Repo
     }
 }
 
+/**
+ * Repeatedly tries to get the list of repositories in the specified GitHub account.
+ *
+ * @param client An instance of [HttpClient] used for making HTTP requests.
+ * @return A list of repositories, or null.
+ */
 suspend fun interactiveGetRepositories(client: HttpClient): List<Repository>? {
     var currentConfig = loadConfig().getOrElse {
         println("Failed to load config.json. Error: ${it.message}")
