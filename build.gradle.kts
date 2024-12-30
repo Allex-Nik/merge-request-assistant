@@ -22,6 +22,7 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktor_version")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:$serialization_json_version")
     testImplementation(kotlin("test"))
+    testImplementation("io.ktor:ktor-client-mock:3.0.2")
 }
 
 tasks.test {

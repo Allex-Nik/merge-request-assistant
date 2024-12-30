@@ -43,6 +43,7 @@ suspend fun getBaseBranchSha(
         when (val status = parseGitHubResponse(branchInfoResponse)) {
             is ResponseStatus.Success -> {
                 val branchInfo = Json.decodeFromString<BranchInfo>(branchInfoResponse.bodyAsText())
+                println(branchInfo)
                 val branchSha = branchInfo.`object`.sha
                 Result.success(branchSha)
             }
