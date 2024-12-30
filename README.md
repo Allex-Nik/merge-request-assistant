@@ -80,10 +80,10 @@ Enter the title of your pull request. Default: Add Hello.txt
 Enter the description of your pull request. Default: Added Hello.txt with Hello world
 
 Available repositories: 4
-1. Name: test_repo, URL: https://github.com/alexniklv/test_repo, Private: true
-2. Name: test_repo_2, URL: https://github.com/alexniklv/test_repo_2, Private: true
-3. Name: test_repo_3, URL: https://github.com/alexniklv/test_repo_3, Private: true
-4. Name: test_repo_4, URL: https://github.com/alexniklv/test_repo_4, Private: false
+1. Name: test_repo, URL: [url], Private: true
+2. Name: test_repo_2, URL: [url], Private: true
+3. Name: test_repo_3, URL: [url], Private: true
+4. Name: test_repo_4, URL: [url], Private: false
 Enter the number of the repository: 
 1
 Selected repository: test_repo
